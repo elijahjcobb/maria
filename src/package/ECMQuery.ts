@@ -22,14 +22,11 @@
  *
  */
 
-import { ECMFilter, ECMOperator, ECMFilterGroupItems } from "./ECMFilter";
-import { ECMCommandable } from "./ECMCommandable";
-import { ECMSort } from "./ECMSort";
-import { ECMDatabase } from "../ECMDatabase";
-import { ECMResponse } from "./ECMResponse";
-import { ECMObject, ECMObjectPropType } from "..";
+import { ECMObject, ECMObjectPropType } from "./ECMObject";
 import { ECArray, ECArrayList } from "@elijahjcobb/collections";
-import { ECErrorOriginType, ECErrorStack, ECErrorType } from "@elijahjcobb/error";
+import { ECSQLCMD, ECSQLCMDQuery } from "@elijahjcobb/sql-cmd";
+import { ECMDatabase } from "./ECMDatabase";
+import { ECMResponse } from "./ECMResponse";
 
 
 export type ECMQueryFactory<T, P> = { new<P>(): T };
@@ -37,89 +34,23 @@ export type ECMQueryFactory<T, P> = { new<P>(): T };
 /**
  * A class that queries the SQL database from filter, a sort, limit, and conditionals.
  */
-export class ECMQuery<Type extends ECMObject<Props>, Props extends ECMObjectPropType> implements ECMCommandable {
+export class ECMQuery<Type extends ECMObject<Props>, Props extends ECMObjectPropType> {
 
 	private readonly table: string;
-	private readonly filter: ECMFilterGroupItems<Props>;
-	private sort: ECMSort<Props>;
-	private limit: number;
 	private readonly factory: ECMQueryFactory<Type, Props>;
+	private query: ECSQLCMDQuery;
 
 	/**
 	 * Create a new query instance
 	 * @param type A class that extends ECMObject
-	 * @param filter A filter group item.
+	 * @param query A query.
 	 */
-	public constructor(type: ECMQueryFactory<Type, Props>, filter?: ECMFilterGroupItems<Props>) {
+	public constructor(type: ECMQueryFactory<Type, Props>, query: ECSQLCMDQuery) {
 
 
-		this.filter = filter;
+		this.query = query;
 		this.factory = type;
 		this.table = (new this.factory()).table;
-
-	}
-
-	/**
-	 * Set the limit of rows that will be returned.
-	 * @param {number} limit The number of rows to be returned.
-	 */
-	public setLimit(limit: number): void {
-
-		this.limit = limit;
-
-	}
-
-	/**
-	 * Set the ECMSort instance to be used in the ECMQuery.
-	 * @param {ECMSort} sort The sort method to be used.
-	 */
-	public setSort(sort: ECMSort<Props>): void {
-
-		this.sort = sort;
-
-	}
-
-	/**
-	 * Generate the entire SQL command from all filter, sort, and limit.
-	 * @param {boolean} isCount Whether or not there is a count limit.
-	 * @return {string} The SQL command.
-	 */
-	public generateSQLCommand(isCount?: boolean): string {
-
-		let command: string = "";
-
-		if (isCount) {
-			command += "SELECT COUNT(*) FROM ";
-		} else {
-			command += "SELECT * FROM ";
-		}
-
-		command += this.table;
-
-		if (this.filter) {
-
-			command += " WHERE ";
-			command += `(${this.filter.generateSQLCommand()})`;
-
-		}
-
-		if (this.sort) {
-
-			command += " ";
-			command += this.sort.generateSQLCommand();
-
-		}
-
-		if (this.limit !== undefined) {
-
-			command += " LIMIT ";
-			command += this.limit;
-
-		}
-
-		command += ";";
-
-		return command;
 
 	}
 
@@ -130,8 +61,7 @@ export class ECMQuery<Type extends ECMObject<Props>, Props extends ECMObjectProp
 	 */
 	public async getFirstObject(allowUndefined?: boolean): Promise<Type> {
 
-		this.limit = 1;
-		const items: ECArray<Type> = await this.getAllObjects();
+		const items: ECArray<Type> = await this.getAllObjects(1);
 		return items.get(0);
 
 	}
@@ -140,9 +70,12 @@ export class ECMQuery<Type extends ECMObject<Props>, Props extends ECMObjectProp
 	 * Get all objects that follow the specified query.
 	 * @return {Promise<ECArray<ECMResponse>>} A promise returning an ECArray of ECMResponse instances.
 	 */
-	public async getAllObjects(): Promise<ECArray<Type>> {
+	public async getAllObjects(count: number = -1): Promise<ECArray<Type>> {
 
-		let objects: object[] = await ECMDatabase.query(this.generateSQLCommand());
+		let command: ECSQLCMD = ECSQLCMD.select(this.table).whereThese(this.query);
+		if (count !== -1) command = command.limit(count);
+
+		let objects: object[] = await ECMDatabase.query(command.generate());
 		let responsesUnformed: ECArrayList<ECMResponse> = new ECArrayList<ECMResponse>();
 		objects.forEach((object: object) => responsesUnformed.add(new ECMResponse(this.table, object)));
 
@@ -166,9 +99,11 @@ export class ECMQuery<Type extends ECMObject<Props>, Props extends ECMObjectProp
 	 */
 	public async count(): Promise<number> {
 
-		let responses: object[] = await ECMDatabase.query(this.generateSQLCommand(true));
+		let command: ECSQLCMD = ECSQLCMD.count(this.table).whereThese(this.query);
+		let responses: object[] = await ECMDatabase.query(command.generate());
 		let responseObject: object = responses[0];
 
+		// @ts-ignore
 		return responseObject["COUNT(*)"];
 	}
 
@@ -190,28 +125,9 @@ export class ECMQuery<Type extends ECMObject<Props>, Props extends ECMObjectProp
 	 */
 	public static async getObjectWithId<T extends ECMObject<P>, P extends ECMObjectPropType>(type: ECMQueryFactory<T, P>, id: string, allowUndefined?: boolean): Promise<T> {
 
-		const table: string = (new type()).table;
-		let query: ECMQuery<T, P> = new ECMQuery<T, P>(type, new ECMFilter("id", ECMOperator.Equal, id));
-		query.setLimit(1);
-		const items: ECArray<T> = await query.getAllObjects();
-		const item: T = items.get(0);
-
-		if (allowUndefined !== true && item === undefined) {
-
-			throw ECErrorStack.newWithMessageAndType(
-				ECErrorOriginType.FrontEnd,
-				ECErrorType.NullOrUndefined,
-				new Error(`Object '${table}' with id '${id}' does not exist.`)).withGenericError();
-
-		} else return item;
+		let query: ECMQuery<T, P> = new ECMQuery<T, P>(type, ECSQLCMDQuery.and().where("id", "=", id));
+		return await query.getFirstObject(allowUndefined);
 
 	}
 
-
-	public static async getObjectsWithIds<T extends ECMObject<P>, P extends ECMObjectPropType>(type: ECMQueryFactory<T, P>, ...ids: string[]): Promise<ECArray<T>> {
-
-		let query: ECMQuery<T, P> = new ECMQuery<T, P>(type,  new ECMFilter("id", ECMOperator.ContainedIn,  ids));
-		return await query.getAllObjects();
-
-	}
 }

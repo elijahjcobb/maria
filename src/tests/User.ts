@@ -22,4 +22,22 @@
  *
  */
 
-console.log("HI");
+import { ECMObject } from "../package";
+
+export interface UserProps {
+	name: string;
+	age: number;
+}
+
+export class User extends ECMObject<UserProps> {
+
+	public constructor() {
+
+		super("user", {
+			name: "string",
+			age: "number"
+		});
+
+	}
+
+}

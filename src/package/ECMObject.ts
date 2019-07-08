@@ -24,9 +24,9 @@
 
 import { ECErrorOriginType, ECErrorStack, ECErrorType } from "@elijahjcobb/error";
 import { ECDictionary, ECMap } from "@elijahjcobb/collections";
-import { ECMDatabase } from "../ECMDatabase";
+import { ECMDatabase } from "./ECMDatabase";
 import { ECGenerator } from "@elijahjcobb/encryption";
-import { ECMCMD } from "@elijahjcobb/sql-cmd";
+import { ECSQLCMD } from "@elijahjcobb/sql-cmd";
 
 /**
  * Types
@@ -128,8 +128,11 @@ export abstract class ECMObject<Props extends ECMObjectPropType> {
 
 		let json: object = this.props;
 
+		// @ts-ignore
 		json["id"] = this.id;
+		// @ts-ignore
 		json["updatedAt"] = this.updatedAt;
+		// @ts-ignore
 		json["createdAt"] = this.createdAt;
 
 		return json;
@@ -196,7 +199,7 @@ export abstract class ECMObject<Props extends ECMObjectPropType> {
 
 				} catch (e) {
 
-					ECMObject.handleInternalError(`Failed to convert ${key} of type ${type} to a Buffer.`);
+					throw ECMObject.handleInternalError(`Failed to convert ${key} of type ${type} to a Buffer.`);
 
 				}
 
@@ -206,7 +209,7 @@ export abstract class ECMObject<Props extends ECMObjectPropType> {
 
 				} catch (e) {
 
-					ECMObject.handleInternalError(`Failed to convert ${key} of type ${type} to a string for encoding.`);
+					throw ECMObject.handleInternalError(`Failed to convert ${key} of type ${type} to a string for encoding.`);
 
 				}
 
@@ -222,8 +225,8 @@ export abstract class ECMObject<Props extends ECMObjectPropType> {
 
 		if (this.id) {
 			map.set("id", this.id);
-			map.set("updatedAt", this.updatedAt);
-			map.set("createdAt", this.createdAt);
+			map.set("updatedAt", this.updatedAt as number);
+			map.set("createdAt", this.createdAt as number);
 		}
 
 		await this.handleNotification(ECMNotification.Encoded);
@@ -274,7 +277,7 @@ export abstract class ECMObject<Props extends ECMObjectPropType> {
 
 					} catch (e) {
 
-						ECMObject.handleInternalError(`Failed to convert ${key} of type ${type} to a Buffer.`);
+						throw ECMObject.handleInternalError(`Failed to convert ${key} of type ${type} to a Buffer.`);
 
 					}
 
@@ -287,7 +290,7 @@ export abstract class ECMObject<Props extends ECMObjectPropType> {
 
 						} catch (e) {
 
-							ECMObject.handleInternalError(`Failed to convert ${key} of type ${type} to a Buffer.`);
+							throw ECMObject.handleInternalError(`Failed to convert ${key} of type ${type} to a Buffer.`);
 
 						}
 
@@ -335,7 +338,7 @@ export abstract class ECMObject<Props extends ECMObjectPropType> {
 
 			const key: string = keys[i];
 			const value: any = this.props[key];
-			let valueToUse: string;
+			let valueToUse: string | undefined;
 
 			if (typeof value === "string") {
 
@@ -404,13 +407,13 @@ export abstract class ECMObject<Props extends ECMObjectPropType> {
 			let map: ECMObjectRow<Props> = await this.encode();
 			let newID: string = ECGenerator.randomId();
 
-			let cmd: ECMCMD = ECMCMD
+			let cmd: ECSQLCMD = ECSQLCMD
 				.insert(this.table)
 				.set("id", newID)
 				.set("updatedAt", Date.now())
 				.set("createdAt", Date.now());
 
-			map.forEach((key: string, value: ECMValue) => cmd.set(key, value));
+			map.forEach((key: ECMObjectRowAcceptedKeyType<Props>, value: ECMObjectRowAcceptedValueType) => cmd.set(key as string, value));
 
 			try {
 
@@ -470,8 +473,9 @@ export abstract class ECMObject<Props extends ECMObjectPropType> {
 		this.updatedAt = Date.now();
 
 		let map: ECMObjectRow<Props> = await this.encode();
-		let cmd: ECMCMD = ECMCMD.update(this.table).where("id", "=", this.id);
-		map.forEach((key: ECMObjectRowAcceptedKeyType<Props>, value: ECMObjectPropAcceptedValueType) => cmd.set(key, value));
+		let cmd: ECSQLCMD = ECSQLCMD.update(this.table).where("id", "=", this.id);
+		// @ts-ignore
+		map.forEach((key: ECMObjectRowAcceptedKeyType<Props>, value: ECMObjectPropAcceptedValueType) => cmd.set(key as string, value));
 
 		await ECMDatabase.query(cmd.generate());
 		await this.handleNotification(ECMNotification.Updated);
@@ -497,7 +501,7 @@ export abstract class ECMObject<Props extends ECMObjectPropType> {
 		if (keys.indexOf("updatedAt") === -1) keys.push("updatedAt");
 
 		let map: ECMObjectRow<Props> = await this.encode();
-		let cmd: ECMCMD = ECMCMD.update(this.table).where("id", "=", this.id);
+		let cmd: ECSQLCMD = ECSQLCMD.update(this.table).where("id", "=", this.id);
 		for (let key of keys) cmd = cmd.set(key as string, map.get(key));
 
 		await ECMDatabase.query(cmd.generate());
@@ -538,7 +542,7 @@ export abstract class ECMObject<Props extends ECMObjectPropType> {
 
 		}
 
-		let command: string = ECMCMD.delete(this.table).where("id", "=", this.id).generate();
+		let command: string = ECSQLCMD.delete(this.table).where("id", "=", this.id).generate();
 		await ECMDatabase.query(command);
 
 		await this.handleNotification(ECMNotification.Deleted);
@@ -550,7 +554,7 @@ export abstract class ECMObject<Props extends ECMObjectPropType> {
 	 * Handles errors that occur during different processes.
 	 * @param error
 	 */
-	private static handleInternalError(error: any): void {
+	private static handleInternalError(error: any): ECErrorStack {
 
 		let message: string = "Internal error.";
 
@@ -564,7 +568,7 @@ export abstract class ECMObject<Props extends ECMObjectPropType> {
 
 		}
 
-		throw ECErrorStack.newWithMessageAndType(ECErrorOriginType.SQLServer, ECErrorType.InternalSQLError, new Error(message)).withGenericError();
+		return ECErrorStack.newWithMessageAndType(ECErrorOriginType.SQLServer, ECErrorType.InternalSQLError, new Error(message)).withGenericError();
 
 	}
 
