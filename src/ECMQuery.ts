@@ -24,7 +24,7 @@
 
 import { ECMObject, ECMObjectPropType } from "./ECMObject";
 import { ECArray, ECArrayList } from "@elijahjcobb/collections";
-import { ECSQLCMD, ECSQLCMDQuery } from "@elijahjcobb/sql-cmd";
+import { ECSQLCMD } from "@elijahjcobb/sql-cmd";
 import { ECMDatabase } from "./ECMDatabase";
 import { ECMResponse } from "./ECMResponse";
 
@@ -38,17 +38,17 @@ export class ECMQuery<Type extends ECMObject<Props>, Props extends ECMObjectProp
 
 	private readonly table: string;
 	private readonly factory: ECMQueryFactory<Type, Props>;
-	private query: ECSQLCMDQuery;
+	private command: ECSQLCMD;
 
 	/**
 	 * Create a new query instance
 	 * @param type A class that extends ECMObject
-	 * @param query A query.
+	 * @param command A command query.
 	 */
-	public constructor(type: ECMQueryFactory<Type, Props>, query: ECSQLCMDQuery) {
+	public constructor(type: ECMQueryFactory<Type, Props>, command: ECSQLCMD) {
 
 
-		this.query = query;
+		this.command = command;
 		this.factory = type;
 		this.table = (new this.factory()).table;
 
@@ -61,7 +61,8 @@ export class ECMQuery<Type extends ECMObject<Props>, Props extends ECMObjectProp
 	 */
 	public async getFirstObject(allowUndefined?: boolean): Promise<Type> {
 
-		const items: ECArray<Type> = await this.getAllObjects(1);
+		this.command = this.command.limit(1);
+		const items: ECArray<Type> = await this.getAllObjects();
 		return items.get(0);
 
 	}
@@ -70,12 +71,9 @@ export class ECMQuery<Type extends ECMObject<Props>, Props extends ECMObjectProp
 	 * Get all objects that follow the specified query.
 	 * @return {Promise<ECArray<ECMResponse>>} A promise returning an ECArray of ECMResponse instances.
 	 */
-	public async getAllObjects(count: number = -1): Promise<ECArray<Type>> {
+	public async getAllObjects(): Promise<ECArray<Type>> {
 
-		let command: ECSQLCMD = ECSQLCMD.select(this.table).whereThese(this.query);
-		if (count !== -1) command = command.limit(count);
-
-		let objects: object[] = await ECMDatabase.query(command.generate());
+		let objects: object[] = await ECMDatabase.query(this.command.generate(this.table));
 		let responsesUnformed: ECArrayList<ECMResponse> = new ECArrayList<ECMResponse>();
 		objects.forEach((object: object) => responsesUnformed.add(new ECMResponse(this.table, object)));
 
@@ -99,8 +97,7 @@ export class ECMQuery<Type extends ECMObject<Props>, Props extends ECMObjectProp
 	 */
 	public async count(): Promise<number> {
 
-		let command: ECSQLCMD = ECSQLCMD.count(this.table).whereThese(this.query);
-		let responses: object[] = await ECMDatabase.query(command.generate());
+		let responses: object[] = await ECMDatabase.query(this.command.generate(this.table));
 		let responseObject: object = responses[0];
 
 		// @ts-ignore
@@ -125,8 +122,20 @@ export class ECMQuery<Type extends ECMObject<Props>, Props extends ECMObjectProp
 	 */
 	public static async getObjectWithId<T extends ECMObject<P>, P extends ECMObjectPropType>(type: ECMQueryFactory<T, P>, id: string, allowUndefined?: boolean): Promise<T> {
 
-		let query: ECMQuery<T, P> = new ECMQuery<T, P>(type, ECSQLCMDQuery.and().where("id", "=", id));
+		let query: ECMQuery<T, P> = new ECMQuery<T, P>(type, ECSQLCMD.select(new type().table).where("id", "=", id));
 		return await query.getFirstObject(allowUndefined);
+
+	}
+
+	/**
+	 * Get an object with a specific id.
+	 * @param type The class of the object.
+	 * @param ids Ids to be retrieved.
+	 */
+	public static async getObjectsWithIds<T extends ECMObject<P>, P extends ECMObjectPropType>(type: ECMQueryFactory<T, P>, ...ids: string[]): Promise<ECArray<T>> {
+
+		let query: ECMQuery<T, P> = new ECMQuery<T, P>(type, ECSQLCMD.select(new type().table).where("id", "in", ids));
+		return await query.getAllObjects();
 
 	}
 

@@ -1,6 +1,6 @@
 import { ECMDatabase, ECMQuery } from "../index";
 import { User, UserProps } from "./User";
-import { ECSQLCMDQuery } from "@elijahjcobb/sql-cmd";
+import { ECSQLCMD, ECSQLCMDQuery } from "@elijahjcobb/sql-cmd";
 import { ECArray } from "@elijahjcobb/collections";
 
 ECMDatabase.init({
@@ -77,8 +77,8 @@ describe("Queries", () => {
 
 		let query: ECMQuery<User, UserProps> = new ECMQuery(
 			User,
-			ECSQLCMDQuery
-				.and()
+			ECSQLCMD
+				.select()
 				.where("age", ">", 18)
 		);
 		let users: ECArray<User> = await query.getAllObjects();
@@ -91,10 +91,14 @@ describe("Queries", () => {
 
 		let query: ECMQuery<User, UserProps> = new ECMQuery(
 			User,
-			ECSQLCMDQuery
-				.and()
-				.where("age", ">", 18)
-				.where("age", "<", 51)
+			ECSQLCMD
+				.select()
+				.whereThese(
+					ECSQLCMDQuery
+						.and()
+						.where("age", ">", 18)
+						.where("age", "<", 51)
+				)
 		);
 		let users: ECArray<User> = await query.getAllObjects();
 
@@ -106,15 +110,20 @@ describe("Queries", () => {
 
 		let query: ECMQuery<User, UserProps> = new ECMQuery(
 			User,
-			ECSQLCMDQuery
-				.or()
+			ECSQLCMD
+				.select()
 				.whereThese(
-					ECSQLCMDQuery.and()
-						.where("age", ">", 18)
-						.where("age", "<", 51)
+					ECSQLCMDQuery
+						.or()
+						.whereThese(
+							ECSQLCMDQuery.and()
+								.where("age", ">", 18)
+								.where("age", "<", 51)
+						)
+						.where("age", "=", "15")
 				)
-				.where("age", "=", "15")
 		);
+
 		let users: ECArray<User> = await query.getAllObjects();
 
 		expect(users.size()).toEqual(3);
@@ -125,8 +134,8 @@ describe("Queries", () => {
 
 		let query: ECMQuery<User, UserProps> = new ECMQuery(
 			User,
-			ECSQLCMDQuery
-				.and()
+			ECSQLCMD
+				.select()
 				.whereKeyIsValueOfQuery("id", "subTest", "id", "MntUcI5eMTF8IYAH")
 		);
 		let user: User = await query.getFirstObject();
