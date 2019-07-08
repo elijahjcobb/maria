@@ -1,0 +1,41 @@
+{
+ "name": "@elijahjcobb/maria",
+ "version": "0.0.1",
+ "description": "",
+ "main": "dist/index",
+ "types": "dist/index",
+ "scripts": {
+  "test": "echo \"Error: no test specified\" && exit 1",
+  "prepublishOnly": "npm run compile",
+  "compile": "npm run clean && /usr/local/bin/tsc -p tsconfig.json",
+  "watch": "tsc -w -p .",
+  "clean": "rm -rf dist"
+ },
+ "repository": {
+  "type": "git",
+  "url": "git+https://github.com/elijahjcobb/maria.git"
+ },
+ "publishConfig": {
+  "access": "public"
+ },
+ "keywords": [],
+ "author": "Elijah Cobb <elijah@elijahcobb.com> (https://elijahcobb.com/)",
+ "license": "MIT",
+ "bugs": {
+  "url": "https://github.com/elijahjcobb/maria/issues"
+ },
+ "homepage": "https://github.com/elijahjcobb/maria#readme",
+ "dependencies": {
+  "@elijahjcobb/sql-cmd": "latest",
+  "mysql": "latest"
+ },
+ "devDependencies": {
+  "@types/node": "latest",
+  "typescript": "latest",
+  "tslint": "latest",
+  "@types/mysql": "latest"
+ },
+ "files": [
+  "dist"
+ ]
+}
