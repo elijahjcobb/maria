@@ -1,6 +1,6 @@
 {
   "name": "@elijahjcobb/maria",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "A smart SQL database manager with easy and quick to use query and object management features.",
   "main": "dist/index",
   "types": "dist/index",
@@ -36,7 +36,7 @@
   "homepage": "https://github.com/elijahjcobb/maria#readme",
   "dependencies": {
     "@elijahjcobb/encryption": "latest",
-    "@elijahjcobb/sql-cmd": "^0.1.4",
+    "@elijahjcobb/sql-cmd": "latest",
     "mysql": "latest"
   },
   "devDependencies": {
@@ -48,6 +48,6 @@
     "@types/jest": "latest"
   },
   "files": [
-    "dist/package"
+    "dist"
   ]
 }

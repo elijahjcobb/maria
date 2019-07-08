@@ -22,7 +22,7 @@
  *
  */
 
-import { ECMObject } from "../package";
+import { ECMObject } from "../index";
 
 export interface UserProps {
 	name: string;

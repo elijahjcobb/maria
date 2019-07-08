@@ -1,4 +1,4 @@
-import { ECMDatabase, ECMQuery } from "../package";
+import { ECMDatabase, ECMQuery } from "../index";
 import { User, UserProps } from "./User";
 import { ECSQLCMDQuery } from "@elijahjcobb/sql-cmd";
 import { ECArray } from "@elijahjcobb/collections";
